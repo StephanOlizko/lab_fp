@@ -20,7 +20,5 @@ async def main():
     receive_task = asyncio.create_task(receive_messages(reader))
     send_task = asyncio.create_task(send_messages(writer))
 
-    await asyncio.gather(receive_task, send_task)
-
 if __name__ == '__main__':
     asyncio.run(main())
