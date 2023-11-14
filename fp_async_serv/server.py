@@ -4,6 +4,13 @@ import tkinter as tk
 from tkinter import scrolledtext
 
 clients = {}
+rooms = {'main': set()}
+
+
+def find_client(client_name):
+    for i in clients.keys():
+        if clients[i] == client_name:
+            return i
 
 async def client_loop(reader, writer, client_address, connections_widget, messages_widget):
     while True:
@@ -14,12 +21,71 @@ async def client_loop(reader, writer, client_address, connections_widget, messag
         display_message = f"Получено сообщение от {client_address} {clients[writer]}: {message}\n"
         messages_widget.insert(tk.END, display_message)
         messages_widget.see(tk.END)
-        for client in clients:
-            #if client != writer:
-            message_send = f" {clients[writer]} - " + message
-            client.write(message_send.encode())
-            await client.drain()
-            print("Сообщение отправлено")
+
+        if message.startswith('/'):
+            if message.startswith('/dm'):
+                client_name = message.split()[1]
+
+                client = find_client(client_name)
+                
+                message_send = f" {clients[writer]} - " + message.split()[2]
+
+                client.write(message_send.encode())
+                await client.drain()
+                print(f"Сообщение отправлено {clients[client]}")
+
+            elif message.startswith('/room'):
+                room_name = message.split()[1]
+                create_room(room_name, writer)
+            
+            elif message.startswith('/add'):
+                _, room_name, person_name = message.split()
+                add_person_to_room(room_name, person_name, writer)
+            
+            elif message.startswith('/enter'):
+                room_name = message.split()[1]
+
+            elif message.startswith('/leave'):
+                room_name = message.split()[1]
+
+        else:
+            for room in rooms:
+                if writer in rooms[room]:
+                    for client in rooms[room]:
+                        message_send = f" {clients[writer]} - " + message
+                        client.write(message_send.encode())
+                        await client.drain()
+                        print("Сообщение отправлено")
+
+
+async def create_room(room_name, writer):
+    if room_name not in rooms:
+        rooms[room_name] = set(writer)
+
+async def add_person_to_room(room_name, person_name, writer):
+    if room_name in rooms:
+        if writer in rooms[room_name] or room_name == 'main':
+
+            client = find_client(person_name)
+            rooms[room_name].add(client)
+
+            writer.write(f"Клиент {person_name} добавлен в комнату {room_name}\n".encode())
+            await writer.drain()
+        else:
+            writer.write(f"Вас нет в этой комнате!\n".encode())
+            await writer.drain()
+    else:
+        writer.write(f"Комната {room_name} не существует\n".encode())
+        await writer.drain()
+
+async def leave_room(room_name, writer):
+    if room_name in rooms:
+        rooms[room_name].pop(writer)
+        writer.write(f"Вы вышли из комнаты {room_name}\n".encode())
+        await writer.drain()
+    else:
+        writer.write(f"Комната {room_name} не существует\n".encode())
+        await writer.drain()
 
 async def handle_client(reader, writer, connections_widget, messages_widget):
     client_address = writer.get_extra_info('peername')
@@ -33,6 +99,8 @@ async def handle_client(reader, writer, connections_widget, messages_widget):
     message = data.decode()
 
     clients[writer] = message
+    rooms["main"].add(writer)
+    
     connections_widget.insert(tk.END, f"{client_address} - {message}\n")
     
     message = f"Ваше имя - {message}"

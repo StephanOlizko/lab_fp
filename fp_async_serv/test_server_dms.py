@@ -15,18 +15,24 @@ async def client_loop(reader, writer, client_address, connections_widget, messag
         messages_widget.insert(tk.END, display_message)
         messages_widget.see(tk.END)
 
-        if message.startswith('/dm'):
+        if message.startswith('/m'):
             client_name = message.split()[1]
 
             for i in clients.keys():
                 if clients[i] == client_name:
                     client = i
             
-            message_send = f" {clients[writer]} - " + message.split()[2]
+            message_send = f"Личное сообщение от {clients[writer]} - " + message.split()[2]
 
             client.write(message_send.encode())
             await client.drain()
             print(f"Сообщение отправлено {clients[client]}")
+
+        elif message.startswith('/users'):
+            message = "Список пользователей: " + ", ".join(clients[i] for i in clients)
+            writer.write(message.encode())
+            await writer.drain()
+            print(f"Команда отправлена {clients[writer]}")
 
         else:
             for client in clients:

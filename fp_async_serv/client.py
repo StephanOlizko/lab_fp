@@ -12,7 +12,7 @@ async def receive_messages(reader, text_widget):
         text_widget.see(tk.END)
         print(f"Получено сообщение: {message}")
 
-async def send_messages(writer, message):
+async def send_messages(writer):
     while True:
         message = await get_input("")
         writer.write(message.encode())
@@ -39,14 +39,7 @@ async def main(text_widget):
     print("Подключено к серверу")
 
     receive_task = asyncio.create_task(receive_messages(reader, text_widget))
-
-    name = "*"
-    message = await get_input("")
-    name = message
-    writer.write(message.encode())
-    await writer.drain()
-
-    send_task = asyncio.create_task(send_messages(writer, name))
+    send_task = asyncio.create_task(send_messages(writer))
 
     await receive_task
     await send_task
