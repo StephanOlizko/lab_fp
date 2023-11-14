@@ -49,7 +49,7 @@ async def client_loop(reader, writer, client_address, connections_widget, messag
 
         elif message.startswith('/adduser'):
             user_to_add = message.split()[1]
-            await add_user_to_chat(writer, user_to_add, current_room)
+            await add_user_to_chat(writer, user_to_add, await show_current_chat(writer))
 
         elif message.startswith('/currentchat'):
             current_room = await show_current_chat(writer)
@@ -133,7 +133,7 @@ async def add_user_to_chat(writer, user_to_add, room_name):
     if room_name in chat_rooms and user_to_add in clients.values():
         target_writer = next(k for k, v in clients.items() if v == user_to_add)
         await join_room(target_writer, room_name)
-        writer.write(f"Пользователь {user_to_add} добавлен в чат: {room_name}".encode())
+        writer.write(f"Пользователь {user_to_add} добавлен в чат".encode())
         await writer.drain()
 
 async def show_current_chat(writer):
