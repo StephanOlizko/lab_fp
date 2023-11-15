@@ -21,14 +21,16 @@ async def client_loop(reader, writer, client_address, connections_widget, messag
 
         if message.startswith('/m'):
             client_name = message.split()[1]
-            room_name = message.split()[2]
 
-            if room_name in chat_rooms and client_name in chat_rooms[room_name]:
-                target_writer = chat_rooms[room_name][client_name]
-                message_send = f"Личное сообщение от {clients[writer]} - {message.split()[3]}"
-                target_writer.write(message_send.encode())
-                await target_writer.drain()
-                print(f"Сообщение отправлено {clients[target_writer]}")
+            for i in clients.keys():
+                if clients[i] == client_name:
+                    client = i
+            
+            message_send = f"Личное сообщение от {clients[writer]} - " + " ".join(i for i in message.split()[2:])
+
+            client.write(message_send.encode())
+            await client.drain()
+            print(f"Сообщение отправлено {clients[client]}")
 
         elif message.startswith('/users'):
             message = "Список пользователей: " + ", ".join(clients[i] for i in clients)

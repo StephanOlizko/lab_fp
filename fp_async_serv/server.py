@@ -4,93 +4,67 @@ import tkinter as tk
 from tkinter import scrolledtext
 
 clients = {}
-rooms = {'main': set()}
+chat_rooms = {'main': set()}
 
+async def client_loop(reader, writer, client_address, connections_widget, messages_widget, current_room):
+    global chat_rooms
 
-def find_client(client_name):
-    for i in clients.keys():
-        if clients[i] == client_name:
-            return i
-
-async def client_loop(reader, writer, client_address, connections_widget, messages_widget):
     while True:
         data = await reader.read(100)
         if not data:
             break
         message = data.decode()
+
         display_message = f"Получено сообщение от {client_address} {clients[writer]}: {message}\n"
         messages_widget.insert(tk.END, display_message)
         messages_widget.see(tk.END)
 
-        if message.startswith('/'):
-            if message.startswith('/dm'):
-                client_name = message.split()[1]
+        if message.startswith('/m'):
+            client_name = message.split()[1]
 
-                client = find_client(client_name)
-                
-                message_send = f" {clients[writer]} - " + message.split()[2]
-
-                client.write(message_send.encode())
-                await client.drain()
-                print(f"Сообщение отправлено {clients[client]}")
-
-            elif message.startswith('/room'):
-                room_name = message.split()[1]
-                create_room(room_name, writer)
+            for i in clients.keys():
+                if clients[i] == client_name:
+                    client = i
             
-            elif message.startswith('/add'):
-                _, room_name, person_name = message.split()
-                add_person_to_room(room_name, person_name, writer)
-            
-            elif message.startswith('/enter'):
-                room_name = message.split()[1]
+            message_send = f"Личное сообщение от {clients[writer]} - " + " ".join(i for i in message.split()[2:])
 
-            elif message.startswith('/leave'):
-                room_name = message.split()[1]
+            client.write(message_send.encode())
+            await client.drain()
+            print(f"Сообщение отправлено {clients[client]}")
+
+        elif message.startswith('/users'):
+            message = "Список пользователей: " + ", ".join(clients[i] for i in clients)
+            writer.write(message.encode())
+            await writer.drain()
+            print(f"Команда отправлена {clients[writer]}")
+
+        elif message.startswith('/join'):
+            room_name = message.split()[1]
+            await join_room(writer, room_name)
+
+        elif message.startswith('/create'):
+            room_name = message.split()[1]
+            await create_room(writer, room_name)
+
+        elif message.startswith('/leave'):
+            await leave_room(writer)
+
+        elif message.startswith('/adduser'):
+            user_to_add = message.split()[1]
+            await add_user_to_chat(writer, user_to_add, await show_current_chat(writer))
+
+        elif message.startswith('/currentchat'):
+            current_room = await show_current_chat(writer)
 
         else:
-            for room in rooms:
-                if writer in rooms[room]:
-                    for client in rooms[room]:
-                        message_send = f" {clients[writer]} - " + message
-                        client.write(message_send.encode())
-                        await client.drain()
-                        print("Сообщение отправлено")
-
-
-async def create_room(room_name, writer):
-    if room_name not in rooms:
-        rooms[room_name] = set(writer)
-
-async def add_person_to_room(room_name, person_name, writer):
-    if room_name in rooms:
-        if writer in rooms[room_name] or room_name == 'main':
-
-            client = find_client(person_name)
-            rooms[room_name].add(client)
-
-            writer.write(f"Клиент {person_name} добавлен в комнату {room_name}\n".encode())
-            await writer.drain()
-        else:
-            writer.write(f"Вас нет в этой комнате!\n".encode())
-            await writer.drain()
-    else:
-        writer.write(f"Комната {room_name} не существует\n".encode())
-        await writer.drain()
-
-async def leave_room(room_name, writer):
-    if room_name in rooms:
-        rooms[room_name].pop(writer)
-        writer.write(f"Вы вышли из комнаты {room_name}\n".encode())
-        await writer.drain()
-    else:
-        writer.write(f"Комната {room_name} не существует\n".encode())
-        await writer.drain()
+            await broadcast_message(writer, f" {clients[writer]} - " + message, await show_current_chat(writer))
 
 async def handle_client(reader, writer, connections_widget, messages_widget):
+    global chat_rooms
+
     client_address = writer.get_extra_info('peername')
     print(f"Новое подключение: {client_address}")
-    
+
     message = "Добро пожаловать, введите имя"
     writer.write(message.encode())
     await writer.drain()
@@ -99,19 +73,21 @@ async def handle_client(reader, writer, connections_widget, messages_widget):
     message = data.decode()
 
     clients[writer] = message
-    rooms["main"].add(writer)
-    
     connections_widget.insert(tk.END, f"{client_address} - {message}\n")
-    
+
     message = f"Ваше имя - {message}"
     writer.write(message.encode())
     await writer.drain()
 
+    current_room = 'main'
+    await join_room(writer, current_room)
+
     try:
-        await client_loop(reader, writer, client_address, connections_widget, messages_widget)
-    except Exception as e:
-        print(f"An error occurred: {e}")
+        await client_loop(reader, writer, client_address, connections_widget, messages_widget, current_room)
+    #except Exception as e:
+    #    print(f"An error occurred: {e}")
     finally:
+        await leave_room(writer)
         if writer in clients.keys():
             clients.pop(writer)
             connections_widget.delete(1.0, tk.END)
@@ -119,6 +95,75 @@ async def handle_client(reader, writer, connections_widget, messages_widget):
         writer.close()
         await writer.wait_closed()
         print(f"Соединение с {client_address} разорвано")
+
+async def join_room(writer, room_name):
+    global chat_rooms
+    await leave_room(writer)
+
+    if room_name not in chat_rooms:
+        writer.write(f"Не существует комнаты: {room_name}".encode())
+        await writer.drain()
+
+    if writer not in chat_rooms[room_name]:
+        chat_rooms[room_name].add(writer)
+    writer.write(f"Вы присоединились к чату: {room_name}".encode())
+    await writer.drain()
+
+async def create_room(writer, room_name):
+    global chat_rooms
+    if room_name not in chat_rooms:
+        chat_rooms[room_name] = set()
+
+    await join_room(writer, room_name)
+
+async def leave_room(writer):
+    global chat_rooms
+    print(chat_rooms)
+    for room_name in chat_rooms.keys():
+        if writer in chat_rooms[room_name]:
+            chat_rooms[room_name].remove(writer)
+            writer.write(f"Вы покинули чат: {room_name}".encode())
+            await writer.drain()
+            break
+    
+    #writer.write(f"Вы присоединились к чату: {room_name}".encode())
+    #await writer.drain()
+
+
+async def add_user_to_chat(writer, user_to_add, room_name):
+    global chat_rooms
+    if room_name in chat_rooms and user_to_add in clients.values():
+        target_writer = next(k for k, v in clients.items() if v == user_to_add)
+        await join_room(target_writer, room_name)
+        writer.write(f"Пользователь {user_to_add} добавлен в чат".encode())
+        await writer.drain()
+
+async def show_current_chat(writer):
+    global chat_rooms
+    #print(chat_rooms)
+
+    current_room = "None"
+
+    print(chat_rooms)
+    for i in chat_rooms.keys():
+        if writer in chat_rooms[i]:
+            current_room = i
+
+    writer.write(f"Вы находитесь в чате: {current_room}".encode())
+    await writer.drain()
+
+    return current_room
+
+async def broadcast_message(writer, message, current_room):
+    global chat_rooms
+
+    print(current_room)
+    if current_room:
+        for user_writer in chat_rooms[current_room]:
+            #if user_writer != writer:
+            user_writer.write(message.encode())
+            await user_writer.drain()
+            print("Сообщение отправлено")
 
 async def main(connections_widget, messages_widget):
     server = await asyncio.start_server(lambda r, w: handle_client(r, w, connections_widget, messages_widget), '127.0.0.1', 8888)
@@ -144,8 +189,3 @@ if __name__ == '__main__':
     asyncio_thread.start()
 
     root.mainloop()
-
-
-
-
-
