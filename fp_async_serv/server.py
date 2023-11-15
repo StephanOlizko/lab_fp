@@ -47,7 +47,7 @@ async def client_loop(reader, writer, client_address, connections_widget, messag
             await create_room(writer, room_name)
 
         elif message.startswith('/leave'):
-            await leave_room(writer)
+            await join_room(writer, "main")
 
         elif message.startswith('/adduser'):
             user_to_add = message.split()[1]
@@ -55,6 +55,12 @@ async def client_loop(reader, writer, client_address, connections_widget, messag
 
         elif message.startswith('/currentchat'):
             current_room = await show_current_chat(writer)
+        
+        elif message.startswith('/listrooms'):
+            await list_rooms(writer)
+        
+        elif message.startswith('/help'):
+            await show_help(writer)
 
         else:
             await broadcast_message(writer, f" {clients[writer]} - " + message, await show_current_chat(writer))
@@ -118,7 +124,7 @@ async def create_room(writer, room_name):
 
 async def leave_room(writer):
     global chat_rooms
-    print(chat_rooms)
+    #print(chat_rooms)
     for room_name in chat_rooms.keys():
         if writer in chat_rooms[room_name]:
             chat_rooms[room_name].remove(writer)
@@ -144,7 +150,7 @@ async def show_current_chat(writer):
 
     current_room = "None"
 
-    print(chat_rooms)
+    #print(chat_rooms)
     for i in chat_rooms.keys():
         if writer in chat_rooms[i]:
             current_room = i
@@ -154,10 +160,31 @@ async def show_current_chat(writer):
 
     return current_room
 
+async def list_rooms(writer):
+    global chat_rooms
+    rooms_list = "Доступные чаты: " + ", ".join(chat_rooms.keys())
+    writer.write(rooms_list.encode())
+    await writer.drain()
+
+async def show_help(writer):
+    help_message = (
+        "/m <user> <message> - отправить личное сообщение в чате\n"
+        "/users - показать список пользователей\n"
+        "/join <room> - присоединиться к чату\n"
+        "/create <room> - создать новый чат\n"
+        "/leave - покинуть текущий чат\n"
+        "/adduser <user> - добавить пользователя в текущий чат\n"
+        "/currentchat - показать текущий чат\n"
+        "/listrooms - показать список комнат\n"
+        "/help - показать это сообщение\n"
+    )
+    writer.write(help_message.encode())
+    await writer.drain()
+
 async def broadcast_message(writer, message, current_room):
     global chat_rooms
 
-    print(current_room)
+    #print(current_room)
     if current_room:
         for user_writer in chat_rooms[current_room]:
             #if user_writer != writer:
