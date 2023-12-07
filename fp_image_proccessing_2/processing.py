@@ -8,6 +8,20 @@ import time
 import threading
 from tkinter import Tk, Button, Label, filedialog
 
+def classify_star_type(rgb_values):
+    # Разбираем значения RGB
+    r, g, b = rgb_values
+    avg = (r + g + b) / 3
+    # Определяем тип звезды на основе цвета
+    if avg > 80:
+        return "Hot star (blue)"
+    elif avg > 40:
+        return "Average temp (yellow/white)"
+    elif avg > 10:
+        return "Low temp (orange/red)"
+    else:
+        return "Unknown type"
+
 
 def analyze_and_draw_objects(image, output_folder, file_name):
     flgFind = False
@@ -15,7 +29,7 @@ def analyze_and_draw_objects(image, output_folder, file_name):
     # Сохранение результата в файл CSV
     csv_file_path = os.path.join(output_folder, "results.tsv")
     with open(csv_file_path, "a", newline="") as csvfile:
-        fieldnames = ["File Name", "Object ID", "Object size", "Object area", "Object average color", "Object brightness", "Center (x, y)"]
+        fieldnames = ["File Name", "Object ID", "Object size", "Object area", "Object average color", "Object brightness", "Center (x, y)", "Star type"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -60,7 +74,8 @@ def analyze_and_draw_objects(image, output_folder, file_name):
                         "Object area": area,
                         "Object average color": avg_color,
                         "Object brightness": brightness,
-                        "Center (x, y)": f"{center[0]}, {center[1]}"
+                        "Center (x, y)": f"{center[0]}, {center[1]}",
+                        "Star type": classify_star_type(avg_color)
                     })
                     flgFind = True
                     # Увеличение уникального ID для следующего объекта
@@ -79,7 +94,8 @@ def analyze_and_draw_objects(image, output_folder, file_name):
                         "Object area": area,
                         "Object average color": "Deformed_object",
                         "Object brightness": "Deformed_object",
-                        "Center (x, y)": f"{center[0]}, {center[1]}"
+                        "Center (x, y)": f"{center[0]}, {center[1]}",
+                        "Star type": classify_star_type(avg_color)
                     })
                     flgFind = True
                     # Увеличение уникального ID для следующего объекта
@@ -113,7 +129,7 @@ def split_and_analyze_image(input_image_path, output_folder, part_size=(256, 256
     # Create a CSV file for results
     csv_file_path = os.path.join(output_folder, "results.tsv")
     with open(csv_file_path, "w", newline="") as csvfile:
-        fieldnames = ["File Name", "Object ID", "Object size", "Object area", "Object average color","Object brightness", "Center (x, y)"]
+        fieldnames = ["File Name", "Object ID", "Object size", "Object area", "Object average color","Object brightness", "Center (x, y)", "Star type"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
         writer.writeheader()
 
