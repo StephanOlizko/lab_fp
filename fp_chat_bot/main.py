@@ -1,7 +1,7 @@
 ﻿import telebot
 import requests
 
-TOKEN = '6578571194:AAE4Ypq3hbgc3zZ30obLuVPTk7VwvQl6m1Y'
+TOKEN = ''
 bot = telebot.TeleBot(TOKEN)
 user_names = {}
 flg_weath = False
@@ -11,7 +11,7 @@ def log_event(event):
         log_file.write(event + "\n")
 
 def get_weather(city):
-    api_key = '56b81f424fb323383eba03bd5f43ddea'
+    api_key = ''
     base_url = 'http://api.openweathermap.org/data/2.5/weather'
 
     params = {
@@ -37,7 +37,7 @@ def get_weather(city):
 
 
 def get_currency_exchange_rates():
-    app_id = 'b045da527af342e2bf3c892e5fa2405f'
+    app_id = ''
     base_url = 'https://open.er-api.com/v6/latest/RUB'
 
     try:
@@ -73,7 +73,6 @@ def get_user_name(user_id):
 def save_user_name(user_id, name):
     user_names[user_id] = name
 
-# Функция для получения случайной шутки с Chuck Norris
 
 # Обработка команды /start
 @bot.message_handler(commands=['start'])
